@@ -1,0 +1,49 @@
+
+Curvature Tuning - Original Paper Reproduction
+==============================================
+
+Model: ResNet-18
+Pretraining: ImageNet
+Dataset: Beans
+
+Seeds: 42, 43, 44
+
+BASELINE
+Seed 42: 89.0625%
+Seed 43: 91.40625%
+Seed 44: 87.5000%
+Mean: 89.32%
+Std: 1.61
+
+S-CT
+Seed 42: 91.40625%
+Seed 43: 90.6250%
+Seed 44: 91.40625%
+Mean: 91.15%
+Std: 0.37
+
+Selected betas:
+Seed 42: 0.78
+Seed 43: 0.77
+Seed 44: 0.79
+Mean beta: 0.78
+
+Average S-CT improvement:
++1.83 percentage points
+
+Environment:
+Python: 3.11
+PyTorch: 2.6.0+cu124
+GPU: Tesla T4
+NumPy: 1.26.3
+datasets: 3.4.1
+
+Dataset compatibility note:
+The authors' original Beans Google Storage URL returned HTTP 403.
+The same public Beans train/validation/test splits were loaded through
+the AI-Lab-Makerere Hugging Face parquet files.
+
+Dataset splits:
+Train: 1034
+Validation: 133
+Test: 128
