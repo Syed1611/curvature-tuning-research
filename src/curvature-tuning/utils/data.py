@@ -265,41 +265,41 @@ def get_data_loaders(dataset,
         test_set  = HuggingFaceDataset(hf_testset, transform=transform_test)
 
     elif dataset_to_use == 'beans':
-    data_files = {
-        "train": "hf://datasets/AI-Lab-Makerere/beans/data/train-00000-of-00001.parquet",
-        "validation": "hf://datasets/AI-Lab-Makerere/beans/data/validation-00000-of-00001.parquet",
-        "test": "hf://datasets/AI-Lab-Makerere/beans/data/test-00000-of-00001.parquet",
-    }
+        data_files = {
+            "train": "hf://datasets/AI-Lab-Makerere/beans/data/train-00000-of-00001.parquet",
+            "validation": "hf://datasets/AI-Lab-Makerere/beans/data/validation-00000-of-00001.parquet",
+            "test": "hf://datasets/AI-Lab-Makerere/beans/data/test-00000-of-00001.parquet",
+        }
 
-    beans_ds = datasets.load_dataset(
-        "parquet",
-        data_files=data_files
-    )
+        beans_ds = datasets.load_dataset(
+            "parquet",
+            data_files=data_files
+        )
 
-    hf_trainset = beans_ds["train"]
-    hf_valset = beans_ds["validation"]
-    hf_testset = beans_ds["test"]
+        hf_trainset = beans_ds["train"]
+        hf_valset = beans_ds["validation"]
+        hf_testset = beans_ds["test"]
 
-    # Current Hugging Face copy uses "labels".
-    # The authors' wrapper expects "label".
-    hf_trainset = hf_trainset.rename_column("labels", "label")
-    hf_valset = hf_valset.rename_column("labels", "label")
-    hf_testset = hf_testset.rename_column("labels", "label")
+        # Current Hugging Face copy uses "labels".
+        # The authors' wrapper expects "label".
+        hf_trainset = hf_trainset.rename_column("labels", "label")
+        hf_valset = hf_valset.rename_column("labels", "label")
+        hf_testset = hf_testset.rename_column("labels", "label")
 
-    train_set = HuggingFaceDataset(
-        hf_trainset,
-        transform=transform_train
-    )
+        train_set = HuggingFaceDataset(
+            hf_trainset,
+            transform=transform_train
+        )
 
-    val_set = HuggingFaceDataset(
-        hf_valset,
-        transform=transform_test
-    )
+        val_set = HuggingFaceDataset(
+            hf_valset,
+            transform=transform_test
+        )
 
-    test_set = HuggingFaceDataset(
-        hf_testset,
-        transform=transform_test
-    )
+        test_set = HuggingFaceDataset(
+            hf_testset,
+            transform=transform_test
+        )
 
     elif dataset_to_use in ['fgvc-aircraft','flowers102','dtd','celeb-a']:
         hf_trainset = datasets.load_dataset(
