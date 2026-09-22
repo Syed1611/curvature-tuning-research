@@ -218,7 +218,7 @@ def main():
         f"./results/stage_ct_"
         f"{args.pretrained_ds}_to_"
         f"{transfer_ds_alias}_"
-        f"{args.model}_seed{args.seed}.json"
+        f"{args.model}_seed{args.seed}_"
         f"initbeta{args.init_beta}_"
         f"betalr{args.beta_lr}.json"
     )
@@ -236,7 +236,8 @@ def main():
             f"{f_name}_"
             f"{args.pretrained_ds}_to_"
             f"{transfer_ds_alias}_"
-            f"{args.model}_seed{args.seed}"
+            f"{args.model}_seed{args.seed}_"
+            f"initbeta{args.init_beta}_"
             f"betalr{args.beta_lr}"
         )
     )
@@ -380,7 +381,8 @@ def main():
         f"./ckpts/stage_ct_"
         f"{args.pretrained_ds}_to_"
         f"{transfer_ds_alias}_"
-        f"{args.model}_seed{args.seed}.pth"
+        f"{args.model}_seed{args.seed}_"
+        f"initbeta{args.init_beta}_"
         f"betalr{args.beta_lr}.pth"
     )
 
