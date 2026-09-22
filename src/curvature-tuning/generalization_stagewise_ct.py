@@ -219,6 +219,7 @@ def main():
         f"{args.pretrained_ds}_to_"
         f"{transfer_ds_alias}_"
         f"{args.model}_seed{args.seed}.json"
+        f"betalr{args.beta_lr}.json"
     )
 
     if os.path.exists(result_path):
@@ -235,6 +236,7 @@ def main():
             f"{args.pretrained_ds}_to_"
             f"{transfer_ds_alias}_"
             f"{args.model}_seed{args.seed}"
+            f"betalr{args.beta_lr}"
         )
     )
 
@@ -378,6 +380,7 @@ def main():
         f"{args.pretrained_ds}_to_"
         f"{transfer_ds_alias}_"
         f"{args.model}_seed{args.seed}.pth"
+        f"betalr{args.beta_lr}.pth"
     )
 
     torch.save(
