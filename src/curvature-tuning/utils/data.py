@@ -300,8 +300,32 @@ def get_data_loaders(dataset,
             hf_testset,
             transform=transform_test
         )
+    elif dataset_to_use == 'dtd':
+        train_set = torchvision.datasets.DTD(
+            root="./data",
+            split="train",
+            partition=1,
+            transform=transform_train,
+            download=True,
+        )
 
-    elif dataset_to_use in ['fgvc-aircraft','flowers102','dtd','celeb-a']:
+        val_set = torchvision.datasets.DTD(
+            root="./data",
+            split="val",
+            partition=1,
+            transform=transform_test,
+            download=True,
+        )
+
+        test_set = torchvision.datasets.DTD(
+            root="./data",
+            split="test",
+            partition=1,
+            transform=transform_test,
+            download=True,
+        )
+
+    elif dataset_to_use in ['fgvc-aircraft','flowers102','celeb-a']:
         hf_trainset = datasets.load_dataset(
             f"randall-lab/{dataset_to_use}",
             split="train",
