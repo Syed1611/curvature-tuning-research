@@ -13,6 +13,7 @@ import copy
 import argparse
 
 import torch
+import wandb
 from torch import nn, optim
 from loguru import logger
 
@@ -242,7 +243,17 @@ def main():
     )
 
     fix_seed(args.seed)
-
+    
+    wandb.init(
+    project="stage-wise-ct",
+    name=(
+        f"stage_ct_{args.pretrained_ds}_to_"
+        f"{transfer_ds_alias}_{args.model}_seed{args.seed}"
+    ),
+    config=vars(args),
+    mode="disabled",
+    )
+    
     logger.info(
         f"Running on {device}"
     )
