@@ -401,6 +401,7 @@ def main():
         f"Results saved to {result_path}"
     )
 
-
+    wandb.finish()
+    
 if __name__ == "__main__":
     main()
