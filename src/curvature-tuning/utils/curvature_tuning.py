@@ -79,7 +79,51 @@ class TCTU(nn.Module):
         return (coeff * torch.sigmoid(beta * x_scaled) * x +
                 (1 - coeff) * F.softplus(x_scaled, threshold=self.threshold) * one_minus_beta)
 
+class SWCTU(nn.Module):
+    """
+    Stage-Wise Curvature Tuning Unit.
 
+    All CTUs belonging to the same ResNet stage share one
+    trainable beta. The coefficient c remains fixed.
+    """
+    def __init__(self, shared_raw_beta, coeff=0.5, threshold=20):
+        super().__init__()
+
+        self.threshold = threshold
+
+        # Shared trainable beta for this ResNet stage
+        self._raw_beta = shared_raw_beta
+
+        # c is fixed, not trainable
+        self.register_buffer(
+            "_coeff",
+            torch.tensor(float(coeff), dtype=torch.float32)
+        )
+
+    @property
+    def beta(self):
+        return torch.sigmoid(self._raw_beta)
+
+    @property
+    def coeff(self):
+        return self._coeff
+
+    def forward(self, x):
+        beta = torch.sigmoid(self._raw_beta)
+        coeff = self._coeff
+
+        one_minus_beta = 1 - beta + 1e-6
+        x_scaled = x / one_minus_beta
+
+        return (
+            coeff * torch.sigmoid(beta * x_scaled) * x
+            +
+            (1 - coeff)
+            * F.softplus(x_scaled, threshold=self.threshold)
+            * one_minus_beta
+        )
+
+    
 def replace_module(model, old_module=nn.ReLU, new_module=SCTU, **kwargs):
     """
     Replace all instances of old_module in the model with new_module.
@@ -192,3 +236,102 @@ def get_mean_beta_and_coeff(model):
         return mean_beta, mean_coeff
     else:
         return None, None
+
+
+def replace_resnet_relu_stagewise(
+    model,
+    init_beta=0.8,
+    coeff=0.5
+):
+    """
+    Replace ResNet ReLUs with Stage-Wise CTUs.
+
+    Stage mapping:
+        Stage 1: stem ReLU + layer1
+        Stage 2: layer2
+        Stage 3: layer3
+        Stage 4: layer4
+    """
+
+    if not (0.0 < init_beta < 1.0):
+        raise ValueError("init_beta must be strictly between 0 and 1.")
+
+    device = next(model.parameters()).device
+
+    # Convert beta to the raw value used before sigmoid.
+    raw_init = torch.logit(
+        torch.tensor(init_beta, dtype=torch.float32, device=device)
+    )
+
+    # Exactly four trainable beta parameters.
+    model.stage_raw_betas = nn.ParameterList([
+        nn.Parameter(raw_init.clone())
+        for _ in range(4)
+    ])
+
+    # Save the original ReLU names before replacing them.
+    relu_names = [
+        name
+        for name, module in model.named_modules()
+        if isinstance(module, nn.ReLU)
+    ]
+
+    stage_counts = [0, 0, 0, 0]
+
+    for name in relu_names:
+
+        # ResNet stem + layer1 use beta_1
+        if name == "relu" or name.startswith("layer1."):
+            stage_idx = 0
+
+        elif name.startswith("layer2."):
+            stage_idx = 1
+
+        elif name.startswith("layer3."):
+            stage_idx = 2
+
+        elif name.startswith("layer4."):
+            stage_idx = 3
+
+        else:
+            raise ValueError(
+                f"Unexpected ReLU location in ResNet: {name}"
+            )
+
+        stage_counts[stage_idx] += 1
+
+        ct = SWCTU(
+            shared_raw_beta=model.stage_raw_betas[stage_idx],
+            coeff=coeff
+        ).to(device)
+
+        # Replace the original ReLU module.
+        names = name.split(".")
+        parent = model
+
+        for n in names[:-1]:
+            if n.isdigit():
+                parent = parent[int(n)]
+            else:
+                parent = getattr(parent, n)
+
+        last_name = names[-1]
+
+        if last_name.isdigit():
+            parent[int(last_name)] = ct
+        else:
+            setattr(parent, last_name, ct)
+
+    print("Stage-Wise CT ReLU counts:", stage_counts)
+
+    return model
+
+
+def get_stage_betas(model):
+    """
+    Return the learned beta value for each ResNet stage.
+    """
+    return [
+        torch.sigmoid(raw_beta).detach().item()
+        for raw_beta in model.stage_raw_betas
+    ]
