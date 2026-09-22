@@ -37,6 +37,58 @@ class SCTU(nn.Module):
                 (1 - coeff) * F.softplus(x_scaled, threshold=self.threshold) * one_minus_beta)
 
 
+class SWCTUFull(nn.Module):
+    """
+    Stage-Wise Curvature Tuning Unit with trainable beta and coeff.
+
+    Each ResNet stage shares:
+        - one trainable beta
+        - one trainable coeff c
+    """
+
+    def __init__(
+        self,
+        shared_raw_beta,
+        shared_raw_coeff,
+        threshold=20
+    ):
+        super().__init__()
+
+        self.threshold = threshold
+
+        # Shared trainable parameters for this stage.
+        self._raw_beta = shared_raw_beta
+        self._raw_coeff = shared_raw_coeff
+
+    @property
+    def beta(self):
+        return torch.sigmoid(self._raw_beta)
+
+    @property
+    def coeff(self):
+        return torch.sigmoid(self._raw_coeff)
+
+    def forward(self, x):
+        beta = torch.sigmoid(self._raw_beta)
+        coeff = torch.sigmoid(self._raw_coeff)
+
+        one_minus_beta = 1 - beta + 1e-6
+        x_scaled = x / one_minus_beta
+
+        return (
+            coeff
+            * torch.sigmoid(beta * x_scaled)
+            * x
+            +
+            (1 - coeff)
+            * F.softplus(
+                x_scaled,
+                threshold=self.threshold
+            )
+            * one_minus_beta
+        )
+
+
 class TCTU(nn.Module):
     """
     CTU for Trainable CT.
@@ -334,4 +386,132 @@ def get_stage_betas(model):
     return [
         torch.sigmoid(raw_beta).detach().item()
         for raw_beta in model.stage_raw_betas
+    ]
+
+def replace_resnet_relu_stagewise_full(
+    model,
+    init_beta=0.78,
+    init_coeff=0.5
+):
+    """
+    Replace ResNet ReLUs with 8-parameter Stage-Wise CTUs.
+
+    Four trainable beta parameters + four trainable coeff parameters.
+
+    Stage mapping:
+        Stage 1: stem ReLU + layer1
+        Stage 2: layer2
+        Stage 3: layer3
+        Stage 4: layer4
+    """
+
+    if not (0.0 < init_beta < 1.0):
+        raise ValueError(
+            "init_beta must be strictly between 0 and 1."
+        )
+
+    if not (0.0 < init_coeff < 1.0):
+        raise ValueError(
+            "init_coeff must be strictly between 0 and 1."
+        )
+
+    device = next(model.parameters()).device
+
+    raw_beta_init = torch.logit(
+        torch.tensor(
+            init_beta,
+            dtype=torch.float32,
+            device=device
+        )
+    )
+
+    raw_coeff_init = torch.logit(
+        torch.tensor(
+            init_coeff,
+            dtype=torch.float32,
+            device=device
+        )
+    )
+
+    # Four shared beta parameters.
+    model.stage_raw_betas = nn.ParameterList([
+        nn.Parameter(raw_beta_init.clone())
+        for _ in range(4)
+    ])
+
+    # Four shared coefficient parameters.
+    model.stage_raw_coeffs = nn.ParameterList([
+        nn.Parameter(raw_coeff_init.clone())
+        for _ in range(4)
+    ])
+
+    # Save ReLU names before replacing them.
+    relu_names = [
+        name
+        for name, module in model.named_modules()
+        if isinstance(module, nn.ReLU)
+    ]
+
+    stage_counts = [0, 0, 0, 0]
+
+    for name in relu_names:
+
+        if name == "relu" or name.startswith("layer1."):
+            stage_idx = 0
+
+        elif name.startswith("layer2."):
+            stage_idx = 1
+
+        elif name.startswith("layer3."):
+            stage_idx = 2
+
+        elif name.startswith("layer4."):
+            stage_idx = 3
+
+        else:
+            raise ValueError(
+                f"Unexpected ReLU location in ResNet: {name}"
+            )
+
+        stage_counts[stage_idx] += 1
+
+        ct = SWCTUFull(
+            shared_raw_beta=
+                model.stage_raw_betas[stage_idx],
+            shared_raw_coeff=
+                model.stage_raw_coeffs[stage_idx],
+        ).to(device)
+
+        names = name.split(".")
+        parent = model
+
+        for n in names[:-1]:
+            if n.isdigit():
+                parent = parent[int(n)]
+            else:
+                parent = getattr(parent, n)
+
+        last_name = names[-1]
+
+        if last_name.isdigit():
+            parent[int(last_name)] = ct
+        else:
+            setattr(parent, last_name, ct)
+
+    print(
+        "Stage-Wise Full CT ReLU counts:",
+        stage_counts
+    )
+
+    return model
+
+
+def get_stage_coeffs(model):
+    """
+    Return learned coefficient c for each ResNet stage.
+    """
+
+    return [
+        torch.sigmoid(raw_coeff).detach().item()
+        for raw_coeff in model.stage_raw_coeffs
     ]
