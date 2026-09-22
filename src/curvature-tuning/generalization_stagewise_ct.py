@@ -219,6 +219,7 @@ def main():
         f"{args.pretrained_ds}_to_"
         f"{transfer_ds_alias}_"
         f"{args.model}_seed{args.seed}.json"
+        f"initbeta{args.init_beta}_"
         f"betalr{args.beta_lr}.json"
     )
 
