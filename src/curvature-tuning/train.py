@@ -146,7 +146,7 @@ def linear_probe(model, train_loader, val_loader, beta=None, new_train_batch_siz
 
     if deterministic:
         val_dataset = torch.utils.data.TensorDataset(val_feats, val_labels)
-        val_loader_new = torch.utils.data.DataLoader(val_dataset, batch_size=new_val_batch_size, shuffle=False, num_workers=6)
+        val_loader_new = torch.utils.data.DataLoader(val_dataset, batch_size=new_val_batch_size, shuffle=False, num_workers=2)
         train_feats, train_labels= train_feats.numpy(), train_labels.numpy()
         logistic_regression = LogisticRegression(max_iter=10000)
         logistic_regression.fit(train_feats, train_labels)
@@ -167,8 +167,8 @@ def linear_probe(model, train_loader, val_loader, beta=None, new_train_batch_siz
         # Create feature datasets
         train_dataset = torch.utils.data.TensorDataset(train_feats, train_labels)
         val_dataset = torch.utils.data.TensorDataset(val_feats, val_labels)
-        train_loader_new = torch.utils.data.DataLoader(train_dataset, batch_size=new_train_batch_size, shuffle=True, num_workers=6)
-        val_loader_new = torch.utils.data.DataLoader(val_dataset, batch_size=new_val_batch_size, shuffle=False, num_workers=6)
+        train_loader_new = torch.utils.data.DataLoader(train_dataset, batch_size=new_train_batch_size, shuffle=True, num_workers=2)
+        val_loader_new = torch.utils.data.DataLoader(val_dataset, batch_size=new_val_batch_size, shuffle=False, num_workers=2)
 
         # Train a linear classifier
         num_features = train_feats.shape[1]

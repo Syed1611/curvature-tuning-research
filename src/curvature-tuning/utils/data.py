@@ -155,7 +155,7 @@ def get_data_loaders(dataset,
                      train_size=None,
                      test_size=None,
                      val_size=None,
-                     num_workers=6,
+                     num_workers=2,
                      transform_train=None,
                      transform_test=None,
                      seed=42):
