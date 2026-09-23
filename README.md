@@ -1,102 +1,56 @@
-\# Stage-Wise Curvature Tuning Research
+# Curvature Tuning - Original Paper Reproduction
 
+MS Research Project - Fall 2026
 
+This branch contains a reproduction of experiments from the NeurIPS 2025 paper:
 
-MS Research Project — Fall 2026
+**Curvature Tuning: Provable Training-free Model Steering From a Single Parameter**
 
+The purpose of this branch is to establish a verified baseline before developing any research extensions.
 
+---
 
-This repository contains my master's research based on the NeurIPS 2025 paper:
+## Base Paper
 
+**Paper:** Curvature Tuning: Provable Training-free Model Steering From a Single Parameter  
+**Authors:** Leyang Hu, Matteo Gamba, Randall Balestriero  
+**Conference:** NeurIPS 2025
 
+Paper:
 
-\*\*Curvature Tuning: Provable Training-free Model Steering From a Single Parameter\*\*
+https://proceedings.neurips.cc/paper_files/paper/2025/hash/57cc9268e06500c7681e58829dca4a07-Abstract-Conference.html
 
-
-
-The project first reproduces the authors' original Curvature Tuning results and then investigates a parameter-efficient extension using stage-wise curvature parameters.
-
-
-
-\---
-
-
-
-\## Base Paper
-
-
-
-\*\*Paper:\*\* Curvature Tuning: Provable Training-free Model Steering From a Single Parameter  
-
-\*\*Conference:\*\* NeurIPS 2025
-
-
-
-Original paper:
-
-https://proceedings.neurips.cc/paper\_files/paper/2025/hash/57cc9268e06500c7681e58829dca4a07-Abstract-Conference.html
-
-
-
-Original GitHub repository:
+Original implementation:
 
 https://github.com/Leon-Leyang/curvature-tuning
 
+---
 
+## Objective
 
-\---
+This branch focuses on reproducing the original Curvature Tuning transfer-learning experiment using:
 
+- ImageNet-pretrained ResNet-18
+- Beans as the downstream dataset
+- Baseline ReLU model
+- Single-Parameter Curvature Tuning (S-CT)
+- Seeds 42, 43, and 44
 
+No Stage-Wise Curvature Tuning modifications are introduced in this branch.
 
-\## Research Motivation
+---
 
+## Curvature Tuning
 
+Curvature Tuning modifies the curvature of the activation functions of a pretrained network without updating the original pretrained backbone weights.
 
-The original paper introduces Curvature Tuning (CT), which adapts pretrained neural networks by modifying activation-function curvature rather than updating the original pretrained weights.
-
-
-
-The paper proposes two main variants:
-
-
-
-\- \*\*S-CT (Steering Curvature Tuning):\*\* uses one shared curvature parameter, `beta`, across the network.
-
-\- \*\*T-CT (Trainable Curvature Tuning):\*\* uses many trainable curvature parameters and provides greater flexibility.
-
-
-
-This research investigates a middle ground:
-
-
-
-\### Stage-Wise Curvature Tuning
-
-
-
-Instead of using one global `beta` for the entire network, each major network stage will use its own curvature parameter.
-
-
-
-For a ResNet architecture:
-
-
+For Single-Parameter Curvature Tuning (S-CT), one shared curvature parameter β is used throughout the network.
 
 ```text
+ResNet-18
 
-S-CT:
-
-beta -> all stages
-
-
-
-Proposed Stage-Wise CT:
-
-Stage 1 -> beta\_1
-
-Stage 2 -> beta\_2
-
-Stage 3 -> beta\_3
-
-Stage 4 -> beta\_4
-
+Stem   ─┐
+Layer1 ─┤
+Layer2 ─┤
+Layer3 ─┤── shared β
+Layer4 ─┘
