@@ -325,7 +325,29 @@ def get_data_loaders(dataset,
             download=True,
         )
 
-    elif dataset_to_use in ['fgvc-aircraft','flowers102','celeb-a']:
+    elif dataset_to_use == 'flowers102':
+        train_set = torchvision.datasets.Flowers102(
+            root="./data",
+            split="train",
+            transform=transform_train,
+            download=True,
+        )
+
+        val_set = torchvision.datasets.Flowers102(
+            root="./data",
+            split="val",
+            transform=transform_test,
+            download=True,
+        )
+
+        test_set = torchvision.datasets.Flowers102(
+            root="./data",
+            split="test",
+            transform=transform_test,
+            download=True,
+        )
+
+    elif dataset_to_use in ['fgvc-aircraft','celeb-a']:
         hf_trainset = datasets.load_dataset(
             f"randall-lab/{dataset_to_use}",
             split="train",
