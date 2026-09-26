@@ -30,7 +30,11 @@ from utils.curvature_tuning import (
     get_stage_betas,
 )
 
-from train import WarmUpLR
+from train import (
+    train_epoch,
+    test_epoch,
+    WarmUpLR,
+)
 
 
 device = torch.device(
@@ -215,235 +219,88 @@ def train_classifier(
     epochs,
 ):
 
-    # Completely freeze model including betas.
+    criterion = nn.CrossEntropyLoss()
+
+    # Freeze absolutely everything.
     for param in model.parameters():
         param.requires_grad = False
 
-    # Remove classifier and extract frozen features.
-    model.fc = nn.Identity()
+    # Re-enable ONLY the final classifier.
+    for param in model.fc.parameters():
+        param.requires_grad = True
 
-    model.eval()
+    # Betas remain fixed.
+    for param in model.stage_raw_betas.parameters():
+        param.requires_grad = False
 
-    print("\nExtracting train features...")
-
-    train_features, train_labels = (
-        extract_features(
-            model,
-            train_loader,
-        )
-    )
-
-    print("Extracting validation features...")
-
-    val_features, val_labels = (
-        extract_features(
-            model,
-            val_loader,
-        )
-    )
-
-    print("Extracting test features...")
-
-    test_features, test_labels = (
-        extract_features(
-            model,
-            test_loader,
-        )
-    )
-
-    print(
-        "Train features:",
-        tuple(train_features.shape),
-    )
-
-    # Feature loaders.
-    train_dataset = TensorDataset(
-        train_features,
-        train_labels,
-    )
-
-    val_dataset = TensorDataset(
-        val_features,
-        val_labels,
-    )
-
-    test_dataset = TensorDataset(
-        test_features,
-        test_labels,
-    )
-
-    train_feature_loader = DataLoader(
-        train_dataset,
-        batch_size=train_bs,
-        shuffle=True,
-        num_workers=2,
-    )
-
-    val_feature_loader = DataLoader(
-        val_dataset,
-        batch_size=eval_bs,
-        shuffle=False,
-        num_workers=2,
-    )
-
-    test_feature_loader = DataLoader(
-        test_dataset,
-        batch_size=eval_bs,
-        shuffle=False,
-        num_workers=2,
-    )
-
-    num_features = (
-        train_features.shape[1]
-    )
-
-    num_classes = (
-        train_labels.max().item()
-        + 1
-    )
-
-    classifier = nn.Linear(
-        num_features,
-        num_classes,
-    ).to(device)
-
-    criterion = nn.CrossEntropyLoss()
-
-    optimizer = optim.Adam(
-        classifier.parameters(),
+    optimizer = torch.optim.Adam(
+        model.fc.parameters(),
         lr=1e-3,
     )
 
     warmup_scheduler = WarmUpLR(
         optimizer,
-        len(train_feature_loader),
+        len(train_loader),
     )
 
-    scheduler = (
-        optim.lr_scheduler.MultiStepLR(
-            optimizer,
-            milestones=[10, 20],
-            gamma=0.1,
-        )
+    # Match original SW-CT scheduler.
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer,
+        milestones=[10],
+        gamma=0.1,
     )
 
-    best_state = None
+    criterion = nn.CrossEntropyLoss()
+
+    best_model = None
     best_val_acc = 0.0
     best_epoch = 0
 
-    print("\nTraining classifier...")
+    print("\nTraining classifier with fixed betas...")
 
-    for epoch in range(
-        1,
-        epochs + 1,
-    ):
+    for epoch in range(1, epochs + 1):
 
-        classifier.train()
-
-        running_loss = 0.0
-        correct = 0
-        total = 0
-
-        for features, targets in (
-            train_feature_loader
-        ):
-
-            features = features.to(device)
-            targets = targets.to(device)
-
-            optimizer.zero_grad(
-                set_to_none=True
-            )
-
-            outputs = classifier(
-                features
-            )
-
-            loss = criterion(
-                outputs,
-                targets,
-            )
-
-            loss.backward()
-            optimizer.step()
-
-            if epoch <= 1:
-                warmup_scheduler.step()
-
-            batch_size = targets.size(0)
-
-            running_loss += (
-                loss.item()
-                * batch_size
-            )
-
-            predictions = outputs.argmax(
-                dim=1
-            )
-
-            correct += (
-                predictions
-                == targets
-            ).sum().item()
-
-            total += batch_size
-
-        train_loss = (
-            running_loss / total
+        # Important:
+        # train_epoch() calls model.train(), matching original SW-CT.
+        train_epoch(
+            epoch,
+            model,
+            train_loader,
+            optimizer,
+            criterion,
+            device,
+            warmup_scheduler,
         )
 
-        train_acc = (
-            100.0
-            * correct
-            / total
-        )
-
-        val_loss, val_acc = (
-            evaluate_classifier(
-                classifier,
-                val_feature_loader,
-                criterion,
-            )
-        )
-
-        print(
-            f"Epoch {epoch:02d} | "
-            f"train_loss={train_loss:.6f} | "
-            f"train_acc={train_acc:.2f}% | "
-            f"val_loss={val_loss:.6f} | "
-            f"val_acc={val_acc:.2f}%"
+        _, val_acc = test_epoch(
+            epoch,
+            model,
+            val_loader,
+            criterion,
+            device,
         )
 
         if val_acc > best_val_acc:
-
             best_val_acc = val_acc
             best_epoch = epoch
-
-            best_state = copy.deepcopy(
-                classifier.state_dict()
-            )
+            best_model = copy.deepcopy(model)
 
         scheduler.step()
 
-    classifier.load_state_dict(
-        best_state
-    )
-
-    test_loss, test_acc = (
-        evaluate_classifier(
-            classifier,
-            test_feature_loader,
-            criterion,
-        )
+    _, test_acc = test_epoch(
+        -1,
+        best_model,
+        test_loader,
+        criterion,
+        device,
     )
 
     return (
         best_val_acc,
         best_epoch,
-        test_loss,
+        0.0,
         test_acc,
     )
-
 
 def main():
 
