@@ -416,16 +416,37 @@ def main():
 
     print("\nExpected learned Beans seed-42 movement:")
 
-    learned_beans_seed42 = [
-        0.8154419,
-        0.8786671,
-        0.8259457,
-        0.6574407,
-    ]
+    learned_beans_betas = {
+        42: [
+            0.8154419,
+            0.8786671,
+            0.8259457,
+            0.6574407,
+        ],
+        43: [
+            0.81150,
+            0.88751,
+            0.80220,
+            0.64478,
+        ],
+        44: [
+            0.81520,
+            0.87503,
+            0.80709,
+            0.63821,
+        ],
+    }
+
+    if args.seed not in learned_beans_betas:
+        raise ValueError(
+            f"No stored learned Beans betas for seed {args.seed}"
+        )
+
+    learned_target_betas = learned_beans_betas[args.seed]
 
     expected_directions = []
 
-    for beta in learned_beans_seed42:
+    for beta in learned_target_betas:
         if beta > args.init_beta:
             expected_directions.append("UP")
         elif beta < args.init_beta:
@@ -435,7 +456,7 @@ def main():
 
     for i, (beta, direction) in enumerate(
         zip(
-            learned_beans_seed42,
+            learned_target_betas,
             expected_directions,
         ),
         start=1,
@@ -503,7 +524,7 @@ def main():
         "predicted_directions":
             directions,
         "learned_swct_betas":
-            learned_beans_seed42,
+            learned_target_betas,
         "expected_directions":
             expected_directions,
         "direction_matches":
