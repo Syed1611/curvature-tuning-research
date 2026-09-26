@@ -10,6 +10,7 @@ the accuracy benefit of learned SW-CT without beta training.
 
 import argparse
 import copy
+import wandb
 
 import torch
 from torch import nn, optim
@@ -307,6 +308,13 @@ def main():
     args = get_args()
 
     fix_seed(args.seed)
+
+    wandb.init(
+        project="predictive-swct",
+        name=f"fixed_beta_eval_{args.transfer_ds}_seed{args.seed}",
+        config=vars(args),
+        mode="disabled",
+    )
 
     predicted_betas = [
         args.beta1,
