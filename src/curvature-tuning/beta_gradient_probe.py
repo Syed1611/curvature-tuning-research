@@ -22,6 +22,7 @@ import json
 import os
 
 import torch
+import wandb
 from torch import nn
 
 from utils.data import (
@@ -121,6 +122,13 @@ def main():
         )
 
     fix_seed(args.seed)
+
+    wandb.init(
+    project="predictive-swct",
+    name=f"beta_gradient_probe_{args.transfer_ds}_seed{args.seed}",
+    config=vars(args),
+    mode="disabled",
+    )
 
     print("=" * 70)
     print("PREDICTIVE SW-CT: INITIAL BETA GRADIENT PROBE")
