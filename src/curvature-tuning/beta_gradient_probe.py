@@ -39,7 +39,11 @@ from utils.curvature_tuning import (
     get_stage_betas,
 )
 
-from train import linear_probe
+from train import (
+    train_epoch,
+    test_epoch,
+    WarmUpLR,
+)
 
 
 device = torch.device(
@@ -185,13 +189,55 @@ def main():
 
     print("\nTraining classifier with beta fixed...")
 
-    stage_model, best_val_acc = linear_probe(
-        stage_model,
-        train_loader,
-        val_loader,
-        new_train_batch_size=args.train_bs,
-        new_val_batch_size=args.test_bs,
+    criterion = nn.CrossEntropyLoss()
+
+    # Only the downstream classifier is trained here.
+    optimizer = torch.optim.Adam(
+        stage_model.fc.parameters(),
+        lr=1e-3,
     )
+
+    warmup_scheduler = WarmUpLR(
+        optimizer,
+        len(train_loader),
+    )
+
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer,
+        milestones=[10, 20],
+        gamma=0.1,
+    )
+
+    best_model = None
+    best_val_acc = 0.0
+
+    for epoch in range(1, 21):
+
+        train_epoch(
+            epoch,
+            stage_model,
+            train_loader,
+            optimizer,
+            criterion,
+            device,
+            warmup_scheduler,
+        )
+
+        _, val_acc = test_epoch(
+            epoch,
+            stage_model,
+            val_loader,
+            criterion,
+            device,
+        )
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_model = copy.deepcopy(stage_model)
+
+        scheduler.step()
+
+    stage_model = best_model
 
     print(
         f"Classifier calibration complete. "
