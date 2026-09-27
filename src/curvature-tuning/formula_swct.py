@@ -53,14 +53,20 @@ device = torch.device(
 BETA_MIN = 0.70
 BETA_MAX = 0.99
 
-# 20-epoch learned SW-CT means from the completed experiments.
-# Stage-4 values below 0.70 are clipped during fitting because the final
-# Formula-SWCT search domain is deliberately constrained to [0.70, 0.99],
-# matching the original S-CT beta interval.
+# Fixed-beta calibration targets selected from stage-isolated
+# validation-accuracy landscapes.
+#
+# These targets match the final deployment setting:
+# beta values are predicted BEFORE downstream classifier training
+# and remain fixed during the single downstream training run.
+#
+# Selection rule:
+# choose the smallest beta achieving the maximum validation accuracy
+# among the stage-isolated probe values.
 CALIBRATION_TARGETS = {
-    "beans": [0.8140, 0.8804, 0.8117, 0.6468],
-    "dtd": [0.8836, 0.9187, 0.8799, 0.7059],
-    "flowers102": [0.8588, 0.8148, 0.8403, 0.6961],
+    "beans": [0.85, 0.85, 0.85, 0.80],
+    "dtd": [0.95, 0.95, 0.99, 0.99],
+    "flowers102": [0.99, 0.95, 0.99, 0.90],
 }
 
 CALIBRATION_SEEDS = [42, 43, 44]
