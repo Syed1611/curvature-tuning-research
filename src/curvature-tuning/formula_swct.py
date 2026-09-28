@@ -624,9 +624,11 @@ def run_mode(args):
     print(f"Test accuracy: {result['test_acc']:.2f}%")
 
     os.makedirs("./results", exist_ok=True)
+    safe_transfer_ds = args.transfer_ds.replace("/", "-")
+
     result_path = (
         f"./results/formula_swct_{args.pretrained_ds}_to_"
-        f"{args.transfer_ds}_{args.model}_seed{args.seed}.json"
+        f"{safe_transfer_ds}_{args.model}_seed{args.seed}.json"
     )
     with open(result_path, "w") as handle:
         json.dump({
