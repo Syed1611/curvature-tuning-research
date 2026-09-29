@@ -347,22 +347,40 @@ def get_data_loaders(dataset,
             download=True,
         )
 
-    elif dataset_to_use in ['fgvc-aircraft','celeb-a']:
-        hf_trainset = datasets.load_dataset(
-            f"randall-lab/{dataset_to_use}",
-            split="train",
+    elif dataset_to_use == 'fgvc-aircraft':
+        hf_dataset = datasets.load_dataset(
+            "HuggingFaceM4/FGVC-Aircraft",
+            num_proc=2
+        )
+
+        hf_trainset = hf_dataset["train"]
+        hf_valset = hf_dataset["validation"]
+        hf_testset = hf_dataset["test"]
+
+        train_set = HuggingFaceDataset(
+            hf_trainset,
+            transform=transform_train
+        )
+
+        val_set = HuggingFaceDataset(
+            hf_valset,
+            transform=transform_test
+        )
+
+        test_set = HuggingFaceDataset(
+            hf_testset,
+            transform=transform_test
+        )
+
+    elif dataset_to_use == 'celeb-a':
+        hf_dataset = datasets.load_dataset(
+            "randall-lab/celeb-a",
             trust_remote_code=True
         )
-        hf_valset = datasets.load_dataset(
-            f"randall-lab/{dataset_to_use}",
-            split="validation",
-            trust_remote_code=True
-        )
-        hf_testset = datasets.load_dataset(
-            f"randall-lab/{dataset_to_use}",
-            split="test",
-            trust_remote_code=True
-        )
+
+        hf_trainset = hf_dataset["train"]
+        hf_valset = hf_dataset["validation"]
+        hf_testset = hf_dataset["test"]
 
         train_set = HuggingFaceDataset(
             hf_trainset,

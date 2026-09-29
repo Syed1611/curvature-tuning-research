@@ -6,7 +6,7 @@ Final research pipeline
 FIT (done once during method development):
     Frozen ImageNet ResNet-18 + calibration datasets
         -> collect per-stage statistics
-        -> fit a small ridge formula to previously learned SW-CT betas
+        -> fit a small ridge formula to fixed-beta calibration targets selected from stage-isolated validation landscapes
         -> save formula coefficients
 
 RUN (for a target dataset):
