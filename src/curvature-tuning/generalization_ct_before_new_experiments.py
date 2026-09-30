@@ -13,7 +13,6 @@ import argparse
 import wandb
 import os
 import numpy as np
-import time
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -31,12 +30,6 @@ def get_args():
     parser.add_argument('--transfer_ds', type=str, default='beans', help='Transfer dataset')
     parser.add_argument('--linear_probe_train_bs', type=int, default=32, help='Batch size for linear probe')
     parser.add_argument('--linear_probe_test_bs', type=int, default=800, help='Batch size for linear probe test')
-    parser.add_argument(
-        '--epochs',
-        type=int,
-        default=20,
-        help='Number of linear-probe training epochs'
-    )
     return parser.parse_args()
 
 
@@ -46,16 +39,8 @@ def main():
     transfer_ds_alias = args.transfer_ds.replace('/', '-')
 
     result_path = {
-        'baseline': (
-            f'./results/base_{args.pretrained_ds}_to_'
-            f'{transfer_ds_alias}_{args.model}_'
-            f'seed{args.seed}_epochs{args.epochs}.json'
-        ),
-        'ct': (
-            f'./results/ct_{args.pretrained_ds}_to_'
-            f'{transfer_ds_alias}_{args.model}_'
-            f'seed{args.seed}_epochs{args.epochs}.json'
-        ),
+        'baseline': f'./results/base_{args.pretrained_ds}_to_{transfer_ds_alias}_{args.model}_seed{args.seed}.json',
+        'ct': f'./results/ct_{args.pretrained_ds}_to_{transfer_ds_alias}_{args.model}_seed{args.seed}.json'
     }
 
     # Check if all result files exist
@@ -65,12 +50,7 @@ def main():
 
     f_name = get_file_name(__file__)
     log_file_path = set_logger(
-        name=(
-            f'{f_name}_{args.pretrained_ds}_to_'
-            f'{transfer_ds_alias}_{args.model}_'
-            f'seed{args.seed}_epochs{args.epochs}'
-        )
-    )
+        name=f'{f_name}_{args.pretrained_ds}_to_{transfer_ds_alias}_{args.model}_seed{args.seed}')
     logger.info(f'Log file: {log_file_path}')
 
     fix_seed(args.seed)  # Fix the seed each time
@@ -103,65 +83,16 @@ def main():
         config=vars(args),
     )
     logger.info('Testing baseline...')
-
-    # Baseline runtime:
-    # one linear-probe training run + final test evaluation.
-    if device.type == "cuda":
-        torch.cuda.synchronize()
-
-    baseline_start = time.perf_counter()
-
     base_model = copy.deepcopy(model)
     num_params_base = sum(param.numel() for param in base_model.parameters() if param.requires_grad)
     logger.info(f'Number of trainable parameters: {num_params_base}')
     logger.info(f'Starting transfer learning...')
-    base_model, base_best_val_acc = linear_probe(
-        base_model,
-        train_loader,
-        val_loader,
-        new_train_batch_size=args.linear_probe_train_bs,
-        new_val_batch_size=args.linear_probe_test_bs,
-        epochs=args.epochs,
-    )
-    _, base_acc = test_epoch(
-        -1,
-        base_model,
-        test_loader,
-        criterion,
-        device,
-    )
-
-    if device.type == "cuda":
-        torch.cuda.synchronize()
-
-    baseline_runtime_seconds = (
-        time.perf_counter() - baseline_start
-    )
-
-    logger.info(
-        f'Baseline Accuracy: {base_acc:.2f}%'
-    )
-
-    logger.info(
-        f'Baseline execution time: '
-        f'{baseline_runtime_seconds:.2f} seconds '
-        f'({baseline_runtime_seconds / 60.0:.2f} minutes)'
-    )
+    base_model, _ = linear_probe(base_model, train_loader, val_loader, new_train_batch_size=args.linear_probe_train_bs, new_val_batch_size=args.linear_probe_test_bs)
+    _, base_acc = test_epoch(-1, base_model, test_loader, criterion, device)
+    logger.info(f'Baseline Accuracy: {base_acc:.2f}%')
     os.makedirs('./ckpts', exist_ok=True)
-    base_checkpoint = (
-        f'./ckpts/base_{args.pretrained_ds}_to_'
-        f'{transfer_ds_alias}_{args.model}_'
-        f'seed{args.seed}_epochs{args.epochs}.pth'
-    )
-
-    torch.save(
-        base_model.state_dict(),
-        base_checkpoint,
-    )
-
-    logger.info(
-        f'Baseline model saved to {base_checkpoint}'
-    )
+    torch.save(base_model.state_dict(), f'./ckpts/base_{args.pretrained_ds}_to_{transfer_ds_alias}_{args.model}_seed{args.seed}.pth')
+    logger.info(f'Baseline model saved to ./ckpts/base_{args.pretrained_ds}_to_{transfer_ds_alias}_{args.model}_seed{args.seed}.pth')
     wandb.log({'test_accuracy': base_acc, 'num_params': num_params_base})
     wandb.finish()
 
@@ -183,18 +114,7 @@ def main():
         wandb.define_metric(f"val_accuracy_beta{beta:.2f}", step_metric=f"epoch_beta{beta:.2f}")
         wandb.define_metric(f"lr_beta{beta:.2f}", step_metric=f"epoch_beta{beta:.2f}")
 
-    # --------------------------------------------------------
-    # Search for the best beta.
-    #
-    # S-CT runtime includes the COMPLETE exhaustive search
-    # over beta = 0.70 ... 1.00, plus final test evaluation.
-    # --------------------------------------------------------
-
-    if device.type == "cuda":
-        torch.cuda.synchronize()
-
-    sct_start = time.perf_counter()
-
+    # Search for the best beta
     best_val_acc = 0.0
     best_beta = None
     best_model = None
@@ -208,15 +128,9 @@ def main():
         num_params_ct = sum(param.numel() for param in ct_model.parameters() if param.requires_grad)
         logger.info(f'Number of trainable parameters: {num_params_ct}')
         logger.info(f'Starting transfer learning...')
-        ct_model, val_acc = linear_probe(
-            ct_model,
-            train_loader,
-            val_loader,
-            beta,
-            new_train_batch_size=args.linear_probe_train_bs,
-            new_val_batch_size=args.linear_probe_test_bs,
-            epochs=args.epochs,
-        )
+        ct_model, val_acc = linear_probe(ct_model, train_loader, val_loader, beta,
+                                         new_train_batch_size=args.linear_probe_train_bs,
+                                         new_val_batch_size=args.linear_probe_test_bs)
         logger.info(f'Best validation accuracy for beta {beta:.2f}: {val_acc:.2f}%')
 
         val_acc_list.append(val_acc)
@@ -229,47 +143,13 @@ def main():
     logger.info(f'Best beta: {best_beta:.2f}, Best validation accuracy: {best_val_acc:.2f}%')
 
     logger.info('Testing the best model...')
-    _, test_acc = test_epoch(
-        -1,
-        best_model,
-        test_loader,
-        criterion,
-        device,
-    )
-
-    if device.type == "cuda":
-        torch.cuda.synchronize()
-
-    sct_runtime_seconds = (
-        time.perf_counter() - sct_start
-    )
-
-    logger.info(
-        f'Test accuracy: {test_acc:.2f}%'
-    )
-
-    logger.info(
-        f'S-CT execution time: '
-        f'{sct_runtime_seconds:.2f} seconds '
-        f'({sct_runtime_seconds / 60.0:.2f} minutes)'
-    )
+    _, test_acc = test_epoch(-1, best_model, test_loader, criterion, device)
+    logger.info(f'Test accuracy: {test_acc:.2f}%')
 
     # Save the CT model
     os.makedirs('./ckpts', exist_ok=True)
-    ct_checkpoint = (
-        f'./ckpts/ct_{args.pretrained_ds}_to_'
-        f'{transfer_ds_alias}_{args.model}_'
-        f'seed{args.seed}_epochs{args.epochs}.pth'
-    )
-
-    torch.save(
-        best_model.state_dict(),
-        ct_checkpoint,
-    )
-
-    logger.info(
-        f'CT model saved to {ct_checkpoint}'
-    )
+    torch.save(best_model.state_dict(), f'./ckpts/ct_{args.pretrained_ds}_to_{transfer_ds_alias}_{args.model}_seed{args.seed}.pth')
+    logger.info(f'CT model saved to ./ckpts/ct_{args.pretrained_ds}_to_{transfer_ds_alias}_{args.model}_seed{args.seed}.pth')
     wandb.log({'test_accuracy': test_acc, 'num_params': num_params_ct, 'best_beta': best_beta})
     wandb.finish()
 
@@ -283,24 +163,11 @@ def main():
     os.makedirs('./results', exist_ok=True)
     save_result_json(
         result_path['baseline'],
-        num_params_base,
-        base_acc,
-        best_val_acc=base_best_val_acc,
-        epochs=args.epochs,
-        runtime_seconds=baseline_runtime_seconds,
-    )
-
+        num_params_base, base_acc)
     save_result_json(
         result_path['ct'],
-        num_params_ct,
-        test_acc,
-        beta=best_beta,
-        coeff=0.5,
-        best_val_acc=best_val_acc,
-        val_acc_list=val_acc_list,
-        epochs=args.epochs,
-        runtime_seconds=sct_runtime_seconds,
-    )
+        num_params_ct, test_acc, beta=best_beta, coeff=0.5, best_val_acc=best_val_acc,
+        val_acc_list=val_acc_list)
     logger.info('Results saved to ./results/')
 
 

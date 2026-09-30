@@ -246,20 +246,12 @@ def main():
         args.transfer_ds.replace("/", "-")
     )
 
-    # Name fixed and random experiments separately so that
-    # their result files never overwrite one another.
-    if args.init_strategy == "fixed":
-        init_tag = f"fixed{args.init_beta}"
-    else:
-        init_tag = "random"
-
     result_path = (
         f"./results/stage_ct_"
         f"{args.pretrained_ds}_to_"
         f"{transfer_ds_alias}_"
         f"{args.model}_seed{args.seed}_"
-        f"epochs{args.epochs}_"
-        f"init{init_tag}_"
+        f"initbeta{args.init_beta}_"
         f"betalr{args.beta_lr}.json"
     )
 
@@ -277,8 +269,7 @@ def main():
             f"{args.pretrained_ds}_to_"
             f"{transfer_ds_alias}_"
             f"{args.model}_seed{args.seed}_"
-            f"epochs{args.epochs}_"
-            f"init{init_tag}_"
+            f"initbeta{args.init_beta}_"
             f"betalr{args.beta_lr}"
         )
     )
@@ -337,76 +328,11 @@ def main():
         )
     )
 
-    # --------------------------------------------------------
-    # Select SW-CT initialization.
-    #
-    # FIXED:
-    #   --init_strategy fixed --init_beta 0.78
-    #
-    #   gives:
-    #   [0.78, 0.78, 0.78, 0.78]
-    #
-    # RANDOM:
-    #   --init_strategy random
-    #
-    #   gives four independent values sampled from
-    #   Uniform(0.70, 0.99).
-    #
-    # The experiment seed is also used for beta generation.
-    # Therefore seed 42 receives exactly the same starting
-    # beta vector at 20 epochs and 30 epochs.
-    # --------------------------------------------------------
-
-    if args.init_strategy == "fixed":
-
-        initial_beta_values = [
-            float(args.init_beta)
-        ] * 4
-
-    else:
-
-        if not (
-            0.0
-            < args.random_beta_min
-            < args.random_beta_max
-            < 1.0
-        ):
-            raise ValueError(
-                "Random beta bounds must satisfy "
-                "0 < min < max < 1."
-            )
-
-        rng = np.random.default_rng(
-            args.seed
-        )
-
-        initial_beta_values = rng.uniform(
-            args.random_beta_min,
-            args.random_beta_max,
-            size=4,
-        ).tolist()
-
-    logger.info(
-        f"Initialization strategy: "
-        f"{args.init_strategy}"
-    )
-
-    logger.info(
-        f"Requested initial stage betas: "
-        f"{[round(x, 6) for x in initial_beta_values]}"
-    )
-
-    # Start wall-clock timing after dataset/model setup.
-    if device.type == "cuda":
-        torch.cuda.synchronize()
-
-    method_start = time.perf_counter()
-
     # Replace ReLUs with our Stage-Wise CTUs.
     stage_model = (
         replace_resnet_relu_stagewise(
             copy.deepcopy(model),
-            init_beta=initial_beta_values,
+            init_beta=args.init_beta,
             coeff=0.5,
         ).to(device)
     )
@@ -452,7 +378,6 @@ def main():
         train_loader,
         val_loader,
         beta_lr=args.beta_lr,
-        epochs=args.epochs,
     )
 
     criterion = nn.CrossEntropyLoss()
@@ -469,23 +394,9 @@ def main():
         stage_model
     )
 
-    if device.type == "cuda":
-        torch.cuda.synchronize()
-
-    runtime_seconds = (
-        time.perf_counter()
-        - method_start
-    )
-
     logger.info(
         f"Stage-Wise CT Test Accuracy: "
         f"{test_acc:.2f}%"
-    )
-
-    logger.info(
-        f"SW-CT execution time: "
-        f"{runtime_seconds:.2f} seconds "
-        f"({runtime_seconds / 60.0:.2f} minutes)"
     )
 
     logger.info(
@@ -503,8 +414,7 @@ def main():
         f"{args.pretrained_ds}_to_"
         f"{transfer_ds_alias}_"
         f"{args.model}_seed{args.seed}_"
-        f"epochs{args.epochs}_"
-        f"init{init_tag}_"
+        f"initbeta{args.init_beta}_"
         f"betalr{args.beta_lr}.pth"
     )
 
@@ -518,14 +428,11 @@ def main():
         total_trainable_params,
         test_acc,
         curvature_params=curvature_params,
-        initial_betas=initial_betas,
+        initial_beta=args.init_beta,
         stage_betas=final_betas,
         coeff=0.5,
         best_val_acc=best_val_acc,
         beta_lr=args.beta_lr,
-        epochs=args.epochs,
-        init_strategy=args.init_strategy,
-        runtime_seconds=runtime_seconds,
     )
 
     logger.info(
